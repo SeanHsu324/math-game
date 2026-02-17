@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>AI 數學練習器</title>
+    <style>
+        :root {
+            --primary-blue: #2196F3;
+            --success-green: #4CAF50;
+            --error-red: #f44336;
+            --text-dark: #333;
+        }
+
+        /* 基礎樣式與相容性重置 */
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        
+        body, html {
+            margin: 0; padding: 0; height: 100%;
+            font-family: -apple-system, system-ui, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: #fff; overflow: hidden;
+        }
+
+        /* 標準屬性 appearance 相容性設定 */
+        input, select, button {
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            appearance: none;
+            outline: none;
+        }
+
+        /* 背景動畫層 */
+        #bgEffect {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 0; pointer-events: none; background-color: white;
+            transition: background-color 0.3s ease;
+        }
+
+        .correct-anim {
+            background: radial-gradient(circle, var(--success-green) 0%, rgba(255,255,255,0) 70%);
+            animation: circleExpand 0.7s ease-out forwards;
+        }
+
+        @keyframes circleExpand {
+            0% { clip-path: circle(0% at 50% 50%); }
+            100% { clip-path: circle(150% at 50% 50%); }
+        }
+
+        /* 設定按鈕 (右上方) */
+        .btn-settings {
+            position: absolute; top: 15px; right: 15px; z-index: 100;
+            font-size: 28px; cursor: pointer; background: rgba(255,255,255,0.7);
+            border-radius: 50%; width: 45px; height: 45px;
+            display: flex; align-items: center; justify-content: center;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        /* 頁面切換 */
+        .page { display: none; position: relative; z-index: 10; height: 100vh; width: 100%; }
+        .active { display: flex; flex-direction: column; align-items: center; justify-content: center; }
+
+        /* 答題區域樣式 */
+        .question-box { font-size: clamp(2.5rem, 12vw, 4.5rem); font-weight: bold; margin-bottom: 20px; color: var(--text-dark); display: flex; align-items: center; justify-content: center; gap: 10px; }
+        
+        /* 直式排列 */
+        .vertical-layout { display: inline-flex; flex-direction: column; align-items: flex-end; padding: 0 20px; border-bottom: 5px solid var(--text-dark); }
+        
+        /* 分數顯示 */
+        .fraction { display: inline-flex; flex-direction: column; align-items: center; vertical-align: middle; font-size: 0.7em; line-height: 1.1; }
+        .frac-line { border-top: 3px solid var(--text-dark); width: 100%; margin: 2px 0; }
+
+        /* 輸入框 */
+        .ans-input {
+            font-size: 2rem; width: 80%; max-width: 200px; padding: 12px;
+            border: 3px solid #ddd; border-radius: 12px; text-align: center;
+            background: white; transition: border-color 0.3s;
+        }
+        .ans-input:focus { border-color: var(--primary-blue); }
+
+        /* 設定頁卡片 */
+        .settings-card {
+            background: white; width: 90%; max-width: 400px; padding: 25px;
+            border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+            max-height: 90vh; overflow-y: auto;
+        }
+        .setting-item { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+        .setting-item label { font-weight: 600; color: #555; }
+        
+        .checkbox-item { display: flex; align-items: center; gap: 8px; font-size: 0.9rem; color: #666; margin-top: -10px; margin-bottom: 15px; justify-content: flex-end; }
+        .checkbox-item input { width: 18px; height: 18px; cursor: pointer; -webkit-appearance: checkbox; appearance: checkbox; }
+
+        select, .num-input {
+            padding: 8px; border: 1px solid #ccc; border-radius: 8px; background: #f9f9f9;
+        }
+
+        .save-btn {
+            width: 100%; padding: 15px; background: var(--primary-blue);
+            color: white; border: none; border-radius: 10px; font-size: 1.1rem; font-weight: bold; margin-top: 10px;
+        }
+
+        #errorStatus { color: var(--error-red); font-weight: bold; margin-bottom: 10px; }
+
+        /* 滑動開關容器 */
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 50px;
+            height: 24px;
+        }
+
+        /* 隱藏原始 Checkbox */
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        /* 滑軌背景 */
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 24px;
+        }
+
+        /* 滑塊圓點 */
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 4px;
+            bottom: 3px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+
+        /* 選中後的背景顏色 */
+        input:checked + .slider {
+            background-color: var(--primary-blue);
+        }
+
+        /* 選中後的圓點位移 */
+        input:checked + .slider:before {
+            transform: translateX(24px);
+        }
+    </style>
+</head>
+<body>
+
+    <div id="bgEffect"></div>
+
+    <div class="btn-settings" onclick="showSettings()">⚙️</div>
+
+    <div id="homePage" class="page active">
+        <div id="errorStatus">錯誤次數: 0/3</div>
+        <div id="questionDisplay" class="question-box"></div>
+        <input type="text" id="userInput" inputmode="decimal" placeholder="輸入答案" autocomplete="off">
+        <p style="color: #888; font-size: 0.9rem;">按下 Enter 或換行鍵檢查</p>
+    </div>
+
+    <div id="settingsPage" class="page">
+        <div class="settings-card">
+            <h2 style="margin-top:0">題目設定</h2>
+            
+            <div class="setting-item">
+                <label>運算符號</label>
+                <select id="opSelect">
+                    <option value="+">加 (+)</option>
+                    <option value="-">減 (-)</option>
+                    <option value="*">乘 (×)</option>
+                    <option value="/">除 (÷)</option>
+                </select>
+            </div>
+
+            <div class="setting-item">
+                <label>數字1 位數</label>
+                <input type="number" id="d1Limit" class="num-input" value="2" min="1" max="4">
+            </div>
+            <div class="checkbox-item">
+                <input type="checkbox" id="n1Neg">
+                <label for="n1Neg">允許負數</label>
+            </div>
+
+            <div class="setting-item">
+                <label>數字2 位數</label>
+                <input type="number" id="d2Limit" class="num-input" value="2" min="1" max="4">
+            </div>
+            <div class="checkbox-item">
+                <input type="checkbox" id="n2Neg">
+                <label for="n2Neg">允許負數</label>
+            </div>
+
+            <div class="setting-item">
+                <label>排列方式</label>
+                <select id="styleSelect">
+                    <option value="h">橫式</option>
+                    <option value="v">直式</option>
+                </select>
+            </div>
+
+            <div class="setting-item">
+                <label>減法結果可為負數</label>
+                <label class="switch">
+                    <input type="checkbox" id="checkNeg">
+                    <span class="slider"></span>
+                </label>
+            </div>
+
+            <div class="setting-item">
+                <label>包含小數/分數</label>
+                <select id="typeSelect">
+                    <option value="int">整數</option>
+                    <option value="dec">小數 (0.1)</option>
+                    <option value="frac">分數 (輸入 a/b)</option>
+                </select>
+            </div>
+
+            <button class="save-btn" onclick="applySettings()">儲存並開始</button>
+        </div>
+    </div>
+
+    <script>
+        let state = {
+            num1: null, num2: null, ans: "",
+            wrong: 0,
+            config: { op: '+', d1: 2, d2: 2, isVertical: false, allowNegResult: false, n1Neg: false, n2Neg: false, mode: 'int' }
+        };
+
+        const bg = document.getElementById('bgEffect');
+        const uInput = document.getElementById('userInput');
+
+        function showSettings() {
+            document.getElementById('homePage').classList.remove('active');
+            document.getElementById('settingsPage').classList.add('active');
+        }
+
+        function applySettings() {
+            state.config.op = document.getElementById('opSelect').value;
+            state.config.d1 = parseInt(document.getElementById('d1Limit').value);
+            state.config.d2 = parseInt(document.getElementById('d2Limit').value);
+            state.config.isVertical = document.getElementById('styleSelect').value === 'v';
+            state.config.allowNegResult = document.getElementById('checkNeg').checked;
+            state.config.n1Neg = document.getElementById('n1Neg').checked;
+            state.config.n2Neg = document.getElementById('n2Neg').checked;
+            state.config.mode = document.getElementById('typeSelect').value;
+
+            document.getElementById('settingsPage').classList.remove('active');
+            document.getElementById('homePage').classList.add('active');
+            nextQuestion();
+        }
+
+        // 最大公因數
+        function gcd(a, b) {
+            a = Math.abs(a); b = Math.abs(b);
+            while (b) { a %= b; [a, b] = [b, a]; }
+            return a;
+        }
+
+        // 分數化簡
+        function simplify(n, d) {
+            if (d === 0) return { n: 0, d: 1 };
+            const common = gcd(n, d);
+            n /= common; d /= common;
+            if (d < 0) { n = -n; d = -d; }
+            return { n, d };
+        }
+
+        function getRand(digits, allowNeg) {
+            let max = Math.pow(10, digits) - 1;
+            let min = Math.pow(10, digits - 1);
+            let val = Math.floor(Math.random() * (max - min + 1)) + min;
+            if (allowNeg && Math.random() > 0.5) val *= -1;
+            return val;
+        }
+
+        function renderNum(num) {
+            if (typeof num === 'object' && num.d !== undefined) {
+                // 分數渲染
+                let prefix = num.n < 0 ? '-' : '';
+                let absN = Math.abs(num.n);
+                return `<div class="fraction">${prefix}${absN}<div class="frac-line"></div>${num.d}</div>`;
+            }
+            return num < 0 ? `(${num})` : num;
+        }
+
+        function nextQuestion() {
+            state.wrong = 0;
+            updateUI();
+            bg.className = ''; 
+            uInput.value = '';
+            uInput.focus();
+
+            let n1, n2;
+            
+            while (true) {
+                if (state.config.mode === 'frac') {
+                    // 分數模式：隨機生成分子分母
+                    let d1 = Math.floor(Math.random() * 8) + 2; // 分母 2-9
+                    let d2 = Math.floor(Math.random() * 8) + 2;
+                    let v1 = getRand(state.config.d1, state.config.n1Neg);
+                    let v2 = getRand(state.config.d2, state.config.n2Neg);
+                    n1 = simplify(v1, d1);
+                    n2 = simplify(v2, d2);
+                } else {
+                    n1 = getRand(state.config.d1, state.config.n1Neg);
+                    n2 = getRand(state.config.d2, state.config.n2Neg);
+                    
+                    if (state.config.mode === 'dec') {
+                        n1 = parseFloat((n1 / 10).toFixed(1));
+                        n2 = parseFloat((n2 / 10).toFixed(1));
+                    }
+                }
+
+                // 除法修正：除數不能為 0
+                if (state.config.op === '/') {
+                    if (state.config.mode === 'frac') {
+                        if (n2.n === 0) continue;
+                    } else if (n2 === 0) {
+                        continue;
+                    }
+                }
+
+                // 減法修正：不允許負數結果
+                if (state.config.op === '-' && !state.config.allowNegResult) {
+                    let val1 = state.config.mode === 'frac' ? n1.n / n1.d : n1;
+                    let val2 = state.config.mode === 'frac' ? n2.n / n2.d : n2;
+                    if (val1 < val2) continue;
+                }
+                break;
+            }
+
+            state.num1 = n1;
+            state.num2 = n2;
+
+            // 計算答案
+            if (state.config.mode === 'frac') {
+                let resN, resD;
+                if (state.config.op === '+' || state.config.op === '-') {
+                    resD = n1.d * n2.d;
+                    resN = state.config.op === '+' ? (n1.n * n2.d + n2.n * n1.d) : (n1.n * n2.d - n2.n * n1.d);
+                } else if (state.config.op === '*') {
+                    resN = n1.n * n2.n; resD = n1.d * n2.d;
+                } else { // 除法
+                    resN = n1.n * n2.d; resD = n1.d * n2.n;
+                }
+                let final = simplify(resN, resD);
+                state.ans = final.d === 1 ? final.n.toString() : `${final.n}/${final.d}`;
+            } else {
+                let finalAns;
+                switch(state.config.op) {
+                    case '+': finalAns = n1 + n2; break;
+                    case '-': finalAns = n1 - n2; break;
+                    case '*': finalAns = n1 * n2; break;
+                    case '/': finalAns = n1 / n2; break;
+                }
+                state.ans = parseFloat(finalAns.toFixed(2)).toString();
+            }
+
+            // 渲染題目
+            const qArea = document.getElementById('questionDisplay');
+            let p1 = renderNum(n1);
+            let p2 = renderNum(n2);
+
+            if (state.config.isVertical) {
+                qArea.innerHTML = `
+                    <div class="vertical-layout">
+                        <div>${p1}</div>
+                        <div>${state.config.op} ${p2}</div>
+                    </div>`;
+            } else {
+                qArea.innerHTML = `${p1} ${state.config.op} ${p2} = `;
+            }
+        }
+
+        function check() {
+            let userVal = uInput.value.trim().replace(/\s/g, '');
+            let isCorrect = false;
+
+            if (state.config.mode === 'frac') {
+                // 分數比對：支援 a/b 或整數
+                isCorrect = (userVal === state.ans);
+            } else {
+                // 數值比對：解決 2.5 === 2.50 問題
+                let userNum = parseFloat(userVal);
+                let targetNum = parseFloat(state.ans);
+                if (!isNaN(userNum)) {
+                    isCorrect = Math.abs(userNum - targetNum) < 0.0001;
+                }
+            }
+
+            if (isCorrect) {
+                bg.classList.add('correct-anim');
+                setTimeout(nextQuestion, 700);
+            } else {
+                state.wrong++;
+                bg.style.backgroundColor = 'rgba(244, 67, 54, 0.2)';
+                setTimeout(() => { bg.style.backgroundColor = 'white'; }, 200);
+                
+                if (state.wrong >= 3) {
+                    alert('答案是 ' + state.ans);
+                    nextQuestion();
+                } else {
+                    updateUI();
+                    uInput.value = '';
+                }
+            }
+        }
+
+        function updateUI() {
+            document.getElementById('errorStatus').innerText = `錯誤次數: ${state.wrong}/3`;
+        }
+
+        uInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') check();
+        });
+
+        nextQuestion();
+    </script>
+</body>
+</html>
